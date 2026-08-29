@@ -100,6 +100,7 @@ def train(data, params):
                             scores_test,
                             scale=scale,
                             )
+            # print("YPRED:", np.isnan(y_pred).sum(), np.nanmin(y_pred), np.nanmax(y_pred))
             acc.append(roc_auc_score(test_y, y_pred, multi_class='ovr'))
             y_pred_val = predict(model, 
                             val_m,
@@ -109,8 +110,13 @@ def train(data, params):
                             )
             val_acc.append(roc_auc_score(val_y, y_pred_val, multi_class='ovr'))
             
-        except:
-            pass
+        except Exception as e:
+            import traceback
+            print("\n ====XGBoost trial ERROR ====")
+            print(f"{type(e).__name__}: {e}")
+            traceback.print_exc()
+            raise
+            
     
     return np.mean(acc), np.mean(val_acc)
 

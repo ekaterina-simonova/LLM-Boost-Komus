@@ -63,8 +63,55 @@ def scale_update(
         #     pred=scores
         # else:
         #     pred = scores + self.predict(dtrain, output_margin=True, training=True, iteration_range=(1, iteration))
+        if iteration == 0:
+            print(
+                "INPUT_TO_FOBJ:",
+
+                "pred_nan=", np.isnan(pred).sum(),
+
+                "pred_inf=", np.isinf(pred).sum(),
+
+                "scores_nan=", np.isnan(scores).sum(),
+
+                "scores_inf=", np.isinf(scores).sum()
+                )
+        if iteration == 0:
+            print("SCORES NAN POSITIONS:", np.argwhere(np.isnan(scores)))
         grad, hess = fobj(pred, dtrain, scores, iteration)
+        # if iteration == 0:
+        #     print(
+        #         "BEFORE_BOOST:",
+
+        #         "grad_nan=", np.isnan(grad).sum(),
+
+        #         "grad_inf=", np.isinf(grad).sum(),
+
+        #         "grad_min=", np.nanmin(grad),
+
+        #         "grad_max=", np.nanmax(grad),
+
+        #         "hess_nan=", np.isnan(hess).sum(),
+
+        #         "hess_inf=", np.isinf(hess).sum(),
+
+        #         "hess_min=", np.nanmin(hess),
+
+        #         "hess_max=", np.nanmax(hess))
+            
         self.boost(dtrain, iteration=iteration, grad=grad, hess=hess)
+        #grad = grad.ravel()
+        #hess = hess.ravel()
+        #self.boost(dtrain, grad=grad, hess=hess)
+        #_check_call(
+            #_LIB.XGBoosterTrainOneIter(
+#
+        pred_after = self.predict(dtrain, output_margin=True, training=True)
+        # print("AFTER BOOST:",
+        #       "shape=", pred_after.shape,
+        #       "nan=", np.isnan(pred_after).sum(),
+        #       "inf=", np.isinf(pred_after),
+        #       "min=", np.nanmin(pred_after),
+        #       "max=", np.nanmax(pred_after))
         
 
 def scale_train(

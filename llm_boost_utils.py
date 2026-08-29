@@ -2,7 +2,10 @@ import os
 import numpy as np
 import pandas as pd
 import csv
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 # import zero
 from sklearn.metrics import f1_score, accuracy_score
 import scipy.special
@@ -12,9 +15,18 @@ from xgboost import XGBRegressor, XGBClassifier
 import random
 from typing import Tuple, Optional
 from sklearn.model_selection import train_test_split
-from tabpfn import TabPFNClassifier
-import lightgbm as lgb
-import openml
+try:
+    from tabpfn import TabPFNClassifier
+except ImportError:
+    TabPFNClassifier = None
+try:
+    import lightgbm as lgb
+except ImportError:
+    lgb=None
+try:
+    import openml
+except ImportError:
+    openml=None
 import math
 # from CAAFE.caafe import data
 # from CAAFE.caafe.preprocessing import make_datasets_numeric
@@ -23,20 +35,19 @@ N_CLASSES = 2
 
 def append_line_to_csv(file_path, data):
     """
-    Appends a line to the specified CSV file with file locking.
-    
-    :param file_path: Path to the CSV file.
-    :param data: List of values to append as a new row.
+    Appends one row to a CSV file. Uses fcntl locking on Unix/Linux. On Windows writes without fcntl locking.
     """
     with open(file_path, 'a', newline='') as file:
         # Lock the file for writing
-        fcntl.flock(file, fcntl.LOCK_EX)
+        if fcntl is not None:
+            fcntl.flock(file, fcntl.LOCK_EX)
         try:
             writer = csv.writer(file)
             writer.writerow(data)
         finally:
             # Ensure the file is unlocked
-            fcntl.flock(file, fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(file, fcntl.LOCK_UN)
 
 
 def softmax(x):

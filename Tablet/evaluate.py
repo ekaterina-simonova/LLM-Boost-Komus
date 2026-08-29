@@ -450,7 +450,8 @@ class Evaluator:
             self.model_obj = transformers.AutoModelForCausalLM.from_pretrained(
                 self.model,
                 # load_in_8bit=True,
-                torch_dtype="auto",
+                load_in_4bit=True,
+                torch_dtype=torch.float16,
                 device_map="auto",
                 cache_dir=cache_dir
             )
@@ -462,8 +463,8 @@ class Evaluator:
             # if "ul2" in self.model:
             self.model_obj = transformers.T5ForConditionalGeneration.from_pretrained(
                 self.model,
-                load_in_8bit=True,
-                torch_dtype=torch.bfloat16,
+                
+                torch_dtype=torch.float16,
                 device_map="auto",
                 cache_dir=cache_dir
             )
@@ -790,11 +791,28 @@ class Evaluator:
                                                                  k_shot=self.k_shot,
                                                                  orderings=self.orderings)
             else:
-                train_data = train_data.map(partial(k_shot_encoding_f, k_shot=self.k_shot),
-                                            batched=True,
-                                            load_from_cache_file=False)
-                k_shot_data = train_data["k_shot_samples"][0]
-                k_shot_data = [k_shot_data for _ in range(len(test_data["serialization"]))]
+                choices = np.random.choice(
+                    len(train_data["serialization"]),
+                    size=self.k_shot,
+                    replace=False
+                )
+
+                lb = "\n"
+
+                selected_examples = [
+                    f"Example {j +1} -\n"
+                    f"{train_data['serialization'][i]}"
+                    f"{lb if not train_data['serialization'][i].endswith(lb) else ''}"
+                    f"Answer: {train_data['label'][i]}"
+                    for j, i in enumerate(choices)
+                ]
+
+                k_shot_text = "\n".join(selected_examples)
+                k_shot_data = [
+                    k_shot_text
+                    for _ in range(len(test_data["serialization"]))
+                ]
+                
         else:
             k_shot_data = ["" for _ in range(len(test_data["serialization"]))]
         test_data = test_data.add_column("k_shot_samples", k_shot_data)
@@ -877,13 +895,16 @@ class Evaluator:
             if "llama" in self.model or "Qwen" in self.model:
                 for label in encoded_cur_labels:
                     masked_label = label.clone()
-                    masked_label[0][:len(encoded_cur_text[0])] = torch.tensor(-100*np.ones(len(encoded_cur_text[0])))
-                    loss = self.model_obj(input_ids=label, labels=masked_label).loss.item()
-                    # loss = loss/(label.shape[-1] - encoded_cur_text.shape[-1] - 1)
-                    logits.append(-loss)
-            else:
-                for label in encoded_labels:
-                    loss = self.model_obj(input_ids=encoded_cur_text, labels=label).loss.item() #.logit
+                    masked_label[0][:len(encoded_cur_text[0])] = torch.tensor(-100 * np.ones(len(encoded_cur_text[0])))
+                    
+                    with torch.inference_mode():
+                        loss=self.model_obj(
+                            input_ids=label,
+                            labels=masked_label
+                        ).loss.item()
+                        if not np.isfinite(loss):
+                            print(f"BAD_LOSS: i={i}, label={label}, loss={loss}")
+                    #loss = self.model_obj(input_ids=encoded_cur_text, labels=label).loss.item() #.logit
                     # loss = loss/(label.shape[-1] - 1)
                     logits.append(-loss)
             
@@ -918,6 +939,8 @@ class Evaluator:
             #     text_generation = text_generation.rstrip(".")
             # all_texts.append(text_generation)
             all_texts.append("None")
+            if not np.all(np.isfinite(logits)):
+                print(f"BAD)LOGITS: i={i}, logits={logits}")
             scores.append(logits)
         return all_texts, scores
 
